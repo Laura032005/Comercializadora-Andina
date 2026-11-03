@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { validarLogin, validarPassword, validarUsuario } from '../utils/validaciones';
-import { MENSAJE_CREDENCIALES, usandoMock } from '../services/authService';
+import { MENSAJE_CREDENCIALES } from '../services/authService';
 import './LoginPage.css';
 
 const validadores = { usuario: validarUsuario, password: validarPassword };
@@ -45,7 +45,7 @@ export default function LoginPage() {
     setErrorGeneral('');
     try {
       await login(form.usuario, form.password);
-      const destino = location.state?.from?.pathname || '/menu';
+      const destino = location.state?.from?.pathname || '/inicio';
       navigate(destino, { replace: true });
     } catch (err) {
       setErrorGeneral(err.message || MENSAJE_CREDENCIALES);
@@ -124,10 +124,6 @@ export default function LoginPage() {
             {cargando ? 'Ingresando…' : 'Iniciar sesión'}
           </button>
         </form>
-
-        {usandoMock && (
-          <p className="login-nota">Modo de prueba: usuarios simulados (sin back-end).</p>
-        )}
       </section>
     </main>
   );

@@ -17,7 +17,7 @@ export function AuthProvider({ children }) {
     return nueva;
   }, []);
 
-  // Cierra la sesión automáticamente cuando vence (1 hora).
+  // Cierra la sesión automáticamente cuando vence el token.
   useEffect(() => {
     if (!sesion) return undefined;
     const restante = sesion.expiraEn - Date.now();
@@ -29,10 +29,22 @@ export function AuthProvider({ children }) {
     return () => clearTimeout(t);
   }, [sesion, logout]);
 
+  // Si el back responde 401 en cualquier petición, se cierra la sesión.
+  useEffect(() => {
+    const alExpirar = () => setSesion(null);
+    window.addEventListener('msv:sesion-expirada', alExpirar);
+    return () => window.removeEventListener('msv:sesion-expirada', alExpirar);
+  }, []);
+
+  const rol = sesion?.usuario?.rol ?? null;
+  const tieneRol = useCallback((roles) => !roles || roles.includes(rol), [rol]);
+
   const value = {
     sesion,
     usuario: sesion?.usuario ?? null,
+    rol,
     autenticado: Boolean(sesion),
+    tieneRol,
     login,
     logout,
   };
