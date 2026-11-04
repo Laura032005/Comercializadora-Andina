@@ -1,57 +1,43 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { validarLogin, validarPassword, validarUsuario } from '../utils/validaciones';
-import { MENSAJE_CREDENCIALES, usandoMock } from '../services/authService';
+import useFormulario from '../hooks/useFormulario';
+import CampoTexto from '../components/CampoTexto';
+import BotonGoogle from '../components/BotonGoogle';
+import { validadoresLogin } from '../utils/validaciones';
+import { MENSAJES, RUTAS } from '../utils/constantes';
 import './LoginPage.css';
 
-const validadores = { usuario: validarUsuario, password: validarPassword };
-
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, loginConGoogle } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-
-  const [form, setForm] = useState({ usuario: '', password: '' });
-  const [errores, setErrores] = useState({});
-  const [tocados, setTocados] = useState({});
-  const [errorGeneral, setErrorGeneral] = useState('');
   const [cargando, setCargando] = useState(false);
-  const [verPassword, setVerPassword] = useState(false);
 
-  function handleChange(e) {
-    const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
-    setErrorGeneral('');
-    if (tocados[name]) {
-      setErrores((er) => ({ ...er, [name]: validadores[name](value) }));
-    }
-  }
-
-  function handleBlur(e) {
-    const { name, value } = e.target;
-    setTocados((t) => ({ ...t, [name]: true }));
-    setErrores((er) => ({ ...er, [name]: validadores[name](value) }));
-  }
+  const form = useFormulario({ correo: '', contrasena: '' }, validadoresLogin);
+  // Si volvimos de Google con un error, el callback nos manda el mensaje en el state.
+  const errorGeneral = form.errorGeneral || location.state?.errorOAuth || '';
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const nuevosErrores = validarLogin(form);
-    setErrores(nuevosErrores);
-    setTocados({ usuario: true, password: true });
-    if (Object.keys(nuevosErrores).length > 0) return;
+    if (!form.validarTodo()) return;
 
     setCargando(true);
-    setErrorGeneral('');
+    form.setErrorGeneral('');
     try {
-      await login(form.usuario, form.password);
-      const destino = location.state?.from?.pathname || '/menu';
-      navigate(destino, { replace: true });
+      await login(form.valores.correo, form.valores.contrasena);
+      navigate(location.state?.from?.pathname || RUTAS.MENU, { replace: true });
     } catch (err) {
-      setErrorGeneral(err.message || MENSAJE_CREDENCIALES);
-      setForm((f) => ({ ...f, password: '' }));
+      form.setErrorGeneral(err.message || MENSAJES.CREDENCIALES);
+      form.aplicarErroresServidor(err.errores);
+      form.limpiarCampo('contrasena');
       setCargando(false);
     }
+  }
+
+  function handleGoogle() {
+    setCargando(true);
+    loginConGoogle();
   }
 
   return (
@@ -65,69 +51,47 @@ export default function LoginPage() {
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           {errorGeneral && (
-            <div className="alerta-error" role="alert">
-              {errorGeneral}
-            </div>
+            <div className="alerta-error" role="alert">{errorGeneral}</div>
           )}
 
-          <div className="campo">
-            <label htmlFor="usuario">Usuario</label>
-            <input
-              id="usuario"
-              name="usuario"
-              type="text"
-              autoComplete="username"
-              autoFocus
-              value={form.usuario}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              aria-invalid={Boolean(errores.usuario)}
-              aria-describedby={errores.usuario ? 'error-usuario' : undefined}
-              disabled={cargando}
-              maxLength={50}
-            />
-            {errores.usuario && (
-              <p id="error-usuario" className="error-campo">{errores.usuario}</p>
-            )}
-          </div>
+          <CampoTexto
+            id="correo"
+            etiqueta="Correo"
+            type="email"
+            autoComplete="email"
+            autoFocus
+            value={form.valores.correo}
+            onChange={form.handleChange}
+            onBlur={form.handleBlur}
+            error={form.errores.correo}
+            disabled={cargando}
+            maxLength={254}
+          />
 
-          <div className="campo">
-            <label htmlFor="password">Contraseña</label>
-            <div className="campo-password">
-              <input
-                id="password"
-                name="password"
-                type={verPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                value={form.password}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                aria-invalid={Boolean(errores.password)}
-                aria-describedby={errores.password ? 'error-password' : undefined}
-                disabled={cargando}
-              />
-              <button
-                type="button"
-                className="btn-ver"
-                onClick={() => setVerPassword((v) => !v)}
-                aria-label={verPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-              >
-                {verPassword ? 'Ocultar' : 'Mostrar'}
-              </button>
-            </div>
-            {errores.password && (
-              <p id="error-password" className="error-campo">{errores.password}</p>
-            )}
-          </div>
+          <CampoTexto
+            id="contrasena"
+            etiqueta="Contraseña"
+            esPassword
+            autoComplete="current-password"
+            value={form.valores.contrasena}
+            onChange={form.handleChange}
+            onBlur={form.handleBlur}
+            error={form.errores.contrasena}
+            disabled={cargando}
+          />
 
           <button type="submit" className="btn" disabled={cargando}>
             {cargando ? 'Ingresando…' : 'Iniciar sesión'}
           </button>
         </form>
 
-        {usandoMock && (
-          <p className="login-nota">Modo de prueba: usuarios simulados (sin back-end).</p>
-        )}
+        <div className="separador"><span>o</span></div>
+
+        <BotonGoogle onClick={handleGoogle} disabled={cargando} />
+
+        <p className="login-nota">
+          ¿No tienes cuenta? <Link to={RUTAS.REGISTRO}>Regístrate</Link>
+        </p>
       </section>
     </main>
   );

@@ -1,51 +1,24 @@
-// Servicio de autenticación. Usa usuarios de prueba (mock) o el back-end real según .env.
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '');
-const STORAGE_KEY = 'msv_sesion';
-export const MENSAJE_CREDENCIALES = 'Usuario o contraseña incorrectos.';
-const DURACION_SESION = 3600; // segundos (1 hora)
+// Servicio de autenticación contra el back-end real (Spring Boot).
+import { peticion, ApiError } from './apiClient';
+import {
+  API_URL,
+  ENDPOINTS,
+  MENSAJES,
+  REFRESH_TTL_MS,
+  STORAGE_KEY,
+} from '../utils/constantes';
 
-const USUARIOS_MOCK = [
-  { username: 'admin', password: 'admin123', nombre: 'Administrador del sistema', rol: 'ADMIN' },
-  { username: 'vendedor', password: 'vendedor123', nombre: 'Vendedor de prueba', rol: 'VENDEDOR' },
-  { username: 'bodega', password: 'bodega123', nombre: 'Encargado de bodega', rol: 'BODEGA' },
-  { username: 'gerente', password: 'gerente123', nombre: 'Gerente general', rol: 'GERENTE' },
-];
+export const MENSAJE_CREDENCIALES = MENSAJES.CREDENCIALES;
 
-async function loginMock(username, password) {
-  await new Promise((r) => setTimeout(r, 400)); // simula la red
-  const u = USUARIOS_MOCK.find((x) => x.username === username && x.password === password);
-  if (!u) throw new Error(MENSAJE_CREDENCIALES);
-  return {
-    token: `mock-token-${u.username}-${Date.now()}`,
-    expiresIn: DURACION_SESION,
-    usuario: { username: u.username, nombre: u.nombre, rol: u.rol },
-  };
-}
-
-async function loginApi(username, password) {
-  let resp;
-  try {
-    resp = await fetch(`${API_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
-  } catch {
-    throw new Error('No se pudo conectar con el servidor. Intenta de nuevo.');
-  }
-  if (resp.status === 400 || resp.status === 401 || resp.status === 403) {
-    throw new Error(MENSAJE_CREDENCIALES);
-  }
-  if (!resp.ok) throw new Error('Ocurrió un error en el servidor. Intenta más tarde.');
-  return resp.json();
-}
-
-function guardarSesion({ token, expiresIn, usuario }) {
+// Convierte la respuesta TokensResponse del back en la sesión que guardamos.
+function guardarSesion(tokens) {
+  const ahora = Date.now();
   const sesion = {
-    token,
-    usuario,
-    expiraEn: Date.now() + (expiresIn || DURACION_SESION) * 1000,
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    usuario: tokens.usuario,
+    expiraEn: ahora + tokens.expiraEnSegundos * 1000, // vence el access token
+    refreshExpiraEn: ahora + REFRESH_TTL_MS, // vence el refresh token
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sesion));
@@ -55,13 +28,7 @@ function guardarSesion({ token, expiresIn, usuario }) {
   return sesion;
 }
 
-export async function login(username, password) {
-  const user = username.trim();
-  const data = USE_MOCK ? await loginMock(user, password) : await loginApi(user, password);
-  return guardarSesion(data);
-}
-
-export function logout() {
+function borrarSesion() {
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch {
@@ -73,21 +40,90 @@ export function obtenerSesion() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const sesion = JSON.parse(raw);
-    if (!sesion?.token || !sesion?.expiraEn || Date.now() >= sesion.expiraEn) {
-      logout();
+    const s = JSON.parse(raw);
+    if (!s?.accessToken || !s?.refreshToken || Date.now() >= s.refreshExpiraEn) {
+      borrarSesion();
       return null;
     }
-    return sesion;
+    return s;
   } catch {
     return null;
   }
 }
 
-// Cabecera para las demás peticiones al back-end.
-export function authHeader() {
-  const s = obtenerSesion();
-  return s ? { Authorization: `Bearer ${s.token}` } : {};
+export async function login(correo, contrasena) {
+  try {
+    const tokens = await peticion(ENDPOINTS.INICIAR_SESION, {
+      cuerpo: { correo: correo.trim(), contrasena },
+    });
+    return guardarSesion(tokens);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) throw new ApiError(401, err.codigo, MENSAJES.CREDENCIALES);
+    throw err;
+  }
 }
 
-export const usandoMock = USE_MOCK;
+export async function registrar({ nombreCompleto, telefono, direccion, fechaNacimiento, correo, contrasena }) {
+  const tokens = await peticion(ENDPOINTS.REGISTRAR_CUSTOMER, {
+    cuerpo: {
+      nombreCompleto: nombreCompleto.trim(),
+      telefono: telefono?.trim() || null,
+      direccion: direccion.trim(),
+      fechaNacimiento,
+      correo: correo.trim(),
+      contrasena,
+    },
+  });
+  return guardarSesion(tokens);
+}
+
+// Navega (no usa fetch) al back, que redirige a Google. Al volver, el back redirige a
+// /oauth2/callback?codigo=... y ahí se llama a intercambiarCodigo.
+export function iniciarConGoogle() {
+  window.location.assign(`${API_URL}${ENDPOINTS.GOOGLE_AUTORIZACION}`);
+}
+
+export async function intercambiarCodigo(codigo) {
+  const tokens = await peticion(ENDPOINTS.INTERCAMBIAR_CODIGO, { cuerpo: { codigo } });
+  return guardarSesion(tokens);
+}
+
+// Evita refrescos simultáneos: el refresh token rota y solo se puede usar una vez.
+let refrescoEnCurso = null;
+
+export function refrescar() {
+  if (refrescoEnCurso) return refrescoEnCurso;
+  const actual = obtenerSesion();
+  if (!actual) return Promise.reject(new ApiError(401, 'sin_sesion', MENSAJES.SESION_EXPIRADA));
+  refrescoEnCurso = peticion(ENDPOINTS.REFRESCAR_TOKEN, { cuerpo: { refreshToken: actual.refreshToken } })
+    .then(guardarSesion)
+    .catch((err) => {
+      if (err instanceof ApiError && err.status === 401) borrarSesion();
+      throw err;
+    })
+    .finally(() => {
+      refrescoEnCurso = null;
+    });
+  return refrescoEnCurso;
+}
+
+// Revoca los tokens en el back (si se puede) y siempre limpia la sesión local.
+export async function logout() {
+  const s = obtenerSesion();
+  borrarSesion();
+  if (!s) return;
+  try {
+    await peticion(ENDPOINTS.CERRAR_SESION, {
+      token: s.accessToken,
+      cuerpo: { refreshToken: s.refreshToken },
+    });
+  } catch {
+    /* si el back no responde igual cerramos la sesión local */
+  }
+}
+
+// Cabecera para las demás peticiones protegidas del back.
+export function authHeader() {
+  const s = obtenerSesion();
+  return s ? { Authorization: `Bearer ${s.accessToken}` } : {};
+}

@@ -1,29 +1,72 @@
-// Reglas del formulario de login (HU17).
-export const MIN_USUARIO = 3;
-export const MAX_USUARIO = 50;
-export const MIN_PASSWORD = 6;
+// Reglas de los formularios de login y registro. Cada validador devuelve '' si es válido.
+import { REGLAS } from './constantes';
 
-export function validarUsuario(valor) {
+export function validarCorreo(valor) {
   const v = (valor ?? '').trim();
-  if (!v) return 'El usuario es obligatorio.';
-  if (v.length < MIN_USUARIO) return `El usuario debe tener al menos ${MIN_USUARIO} caracteres.`;
-  if (v.length > MAX_USUARIO) return `El usuario no puede superar ${MAX_USUARIO} caracteres.`;
-  if (!/^[A-Za-z0-9._-]+$/.test(v)) return 'El usuario solo puede tener letras, números, punto, guion y guion bajo.';
+  if (!v) return 'El correo es obligatorio.';
+  if (v.length > REGLAS.CORREO_MAX) return `El correo no puede superar ${REGLAS.CORREO_MAX} caracteres.`;
+  if (!REGLAS.REGEX_CORREO.test(v)) return 'Ingresa un correo válido.';
   return '';
 }
 
-export function validarPassword(valor) {
+// En el login solo se exige que no esté vacía (la política se aplica al registrarse).
+export function validarPasswordLogin(valor) {
+  return valor ? '' : 'La contraseña es obligatoria.';
+}
+
+export function validarPasswordNueva(valor) {
   const v = valor ?? '';
   if (!v) return 'La contraseña es obligatoria.';
-  if (v.length < MIN_PASSWORD) return `La contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`;
+  if (v.length < REGLAS.PASSWORD_MIN) return `Debe tener al menos ${REGLAS.PASSWORD_MIN} caracteres.`;
+  if (v.length > REGLAS.PASSWORD_MAX) return `No puede superar ${REGLAS.PASSWORD_MAX} caracteres.`;
+  if (!/[A-Z]/.test(v)) return 'Debe incluir al menos una mayúscula.';
+  if (!/\d/.test(v)) return 'Debe incluir al menos un número.';
+  if (!/[^A-Za-z0-9]/.test(v)) return 'Debe incluir al menos un símbolo.';
   return '';
 }
 
-export function validarLogin({ usuario, password }) {
-  const errores = {};
-  const eu = validarUsuario(usuario);
-  const ep = validarPassword(password);
-  if (eu) errores.usuario = eu;
-  if (ep) errores.password = ep;
-  return errores;
+export function validarConfirmacion(valor, valores) {
+  if (!valor) return 'Confirma la contraseña.';
+  return valor === valores.contrasena ? '' : 'Las contraseñas no coinciden.';
 }
+
+export function validarNombre(valor) {
+  const v = (valor ?? '').trim();
+  if (!v) return 'El nombre completo es obligatorio.';
+  if (v.length > REGLAS.NOMBRE_MAX) return `No puede superar ${REGLAS.NOMBRE_MAX} caracteres.`;
+  return '';
+}
+
+export function validarTelefono(valor) {
+  const v = (valor ?? '').trim();
+  if (!v) return ''; // opcional
+  return REGLAS.REGEX_TELEFONO_E164.test(v) ? '' : 'Usa formato internacional, por ejemplo +573001234567.';
+}
+
+export function validarDireccion(valor) {
+  const v = (valor ?? '').trim();
+  if (!v) return 'La dirección es obligatoria.';
+  if (v.length > REGLAS.DIRECCION_MAX) return `No puede superar ${REGLAS.DIRECCION_MAX} caracteres.`;
+  return '';
+}
+
+export function validarFechaNacimiento(valor) {
+  if (!valor) return 'La fecha de nacimiento es obligatoria.';
+  const hoy = new Date().toISOString().slice(0, 10);
+  return valor < hoy ? '' : 'La fecha de nacimiento debe ser anterior a hoy.';
+}
+
+export const validadoresLogin = {
+  correo: validarCorreo,
+  contrasena: validarPasswordLogin,
+};
+
+export const validadoresRegistro = {
+  nombreCompleto: validarNombre,
+  telefono: validarTelefono,
+  direccion: validarDireccion,
+  fechaNacimiento: validarFechaNacimiento,
+  correo: validarCorreo,
+  contrasena: validarPasswordNueva,
+  confirmacion: validarConfirmacion,
+};
