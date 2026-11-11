@@ -29,6 +29,12 @@ export function AuthProvider({ children }) {
     return () => clearTimeout(t);
   }, [sesion, logout]);
 
+  // Si el back-end responde 401 (token vencido o inválido), se cierra la sesión.
+  useEffect(() => {
+    window.addEventListener('msv:no-autorizado', logout);
+    return () => window.removeEventListener('msv:no-autorizado', logout);
+  }, [logout]);
+
   const value = {
     sesion,
     usuario: sesion?.usuario ?? null,

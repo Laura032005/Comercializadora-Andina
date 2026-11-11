@@ -1,8 +1,10 @@
-# MSV Front-End · Login (HU17 / EL-73)
+# MSV Front-End · Sistema de Ventas Comercial Andina S.A.S.
 
-Front-end del Sistema de Ventas de Comercial Andina S.A.S. Hecho con **React + Vite**.
-Este primer módulo trae la pantalla de login con validaciones y un servicio de autenticación
-que funciona con usuarios de prueba (mock) hasta que el back-end tenga `POST /api/auth/login`.
+Front-end del Sistema de Ventas de Comercial Andina S.A.S. (ferretería y construcción). Hecho con **React + Vite**.
+Integra ventas, inventario (dos bodegas), despachos, facturación y reportes en una sola plataforma.
+Mientras el back-end no esté listo, todo funciona en **modo mock**: los datos de prueba se guardan en
+`localStorage` del navegador (para volver a los datos iniciales, borra las claves `msv_db_*` en
+*DevTools → Application → Local Storage*).
 
 ## Guía paso a paso
 
@@ -25,12 +27,16 @@ npm run dev
 Abre http://localhost:5173 en el navegador.
 
 ### 4. Probar el login (usuarios de prueba)
-| Usuario  | Contraseña   | Rol      |
-|----------|--------------|----------|
-| admin    | admin123     | ADMIN    |
-| vendedor | vendedor123  | VENDEDOR |
-| bodega   | bodega123    | BODEGA   |
-| gerente  | gerente123   | GERENTE  |
+| Usuario    | Contraseña   | Rol      |
+|------------|--------------|----------|
+| admin      | admin123     | ADMIN    |
+| vendedor   | vendedor123  | VENDEDOR (mostrador) |
+| mayoristas | vendedor123  | VENDEDOR (pedidos mayoristas) |
+| bodega     | bodega123    | BODEGA   |
+| gerente    | gerente123   | GERENTE  |
+| contador   | contador123  | CONTADOR (área contable) |
+
+Los usuarios creados en el módulo **Usuarios** también pueden iniciar sesión (en modo mock).
 
 Qué debe pasar (criterios de aceptación de HU17):
 - Campos vacíos o muy cortos → mensaje debajo de cada campo.
@@ -38,24 +44,40 @@ Qué debe pasar (criterios de aceptación de HU17):
 - Credenciales buenas → entra a `/menu` y muestra nombre, rol y opciones de ese rol.
 - La sesión dura 1 hora; "Cerrar sesión" vuelve al login.
 
+### 4.1 Módulos y quién los ve
+| Módulo | Ruta | Roles | Qué resuelve del caso |
+|---|---|---|---|
+| Nueva venta | `/ventas/nueva` | ADMIN, VENDEDOR | Reemplaza el cuaderno: valida stock por bodega, descuenta inventario y genera la factura en un paso. Canal mostrador o pedido (WhatsApp / teléfono). |
+| Ventas y pedidos | `/ventas`, `/ventas/:id` | ADMIN, VENDEDOR (las suyas, o todas), GERENTE | El vendedor ve el estado del pedido sin llamar a bodega. ADMIN puede anular con motivo (devuelve el stock). |
+| Clientes | `/clientes`, `/clientes/:id` | ADMIN, VENDEDOR, GERENTE (solo lectura) | Clientes finales y mayoristas con historial de compras y "mejores clientes". |
+| Despachos | `/despachos` | ADMIN, BODEGA | Pedido pendiente → preparado → despachado → entregado. |
+| Inventario | `/inventario` | ADMIN, BODEGA, GERENTE | Existencias por bodega en tiempo real, alertas de stock bajo, movimientos, CSV. |
+| Entradas y traslados | `/entradas` | ADMIN, BODEGA | Ingreso de mercancía de proveedores y traslados entre bodegas. |
+| Productos | `/productos` | ADMIN | Catálogo, precios y stock mínimo (el stock no se edita a mano). |
+| Facturación | `/facturacion`, `/ventas/:id/factura` | ADMIN, CONTADOR | Facturas por mes con IVA, factura imprimible y exportación CSV para contabilidad. |
+| Tablero gerencial | `/indicadores` | ADMIN, GERENTE | Ventas de hoy y del mes, meta, productos que más rotan, alertas de inventario (se refresca cada minuto). |
+| Reportes | `/reportes` | ADMIN, GERENTE, CONTADOR | Ventas por periodo, vendedor, canal, tipo de cliente, productos y clientes; CSV. |
+| Usuarios | `/usuarios` | ADMIN | Crear, editar, activar/desactivar usuarios. |
+
+Los permisos están en `src/config/modulos.js` (menú, tarjetas de inicio y protección de rutas salen de ahí).
+
 ### 5. Estructura
 ```
 src/
-├── main.jsx                  # punto de entrada (router + proveedor de sesión)
-├── App.jsx                   # rutas: /login y /menu (protegida)
-├── index.css                 # estilos globales
-├── pages/
-│   ├── LoginPage.jsx         # pantalla de login
-│   ├── LoginPage.css
-│   └── MenuPage.jsx          # pantalla temporal después de entrar
-├── components/
-│   └── ProtectedRoute.jsx    # si no hay sesión, manda al login
-├── context/
-│   └── AuthContext.jsx       # guarda la sesión y expone login/logout
+├── App.jsx                   # rutas (todas protegidas por rol)
+├── config/modulos.js         # módulos y roles que los ven
+├── components/               # Layout (menú lateral), ProtectedRoute, UI (Modal, Campo, Aviso…), Insignias
+├── context/AuthContext.jsx   # sesión
+├── hooks/                    # useDatos (cargar datos), useFormulario
+├── pages/                    # LoginPage, MenuPage y una carpeta por módulo
 ├── services/
-│   └── authService.js        # mock o API real (según .env)
-└── utils/
-    └── validaciones.js       # reglas del formulario
+│   ├── config.js             # VITE_USE_MOCK, VITE_API_URL, IVA
+│   ├── http.js               # fetch al back-end con el token
+│   ├── catalogos.js          # bodegas, roles, canales, estados
+│   ├── mockDb.js, semillas.js# datos de prueba en localStorage
+│   └── *Service.js           # cada servicio tiene versión mock y versión API
+├── styles/modulos.css
+└── utils/                    # validaciones, formato (COP, fechas, CSV), estadísticas
 ```
 
 ### 6. Conectar con el back-end (cuando esté listo)
@@ -65,6 +87,28 @@ El servicio espera esta respuesta de `POST /api/auth/login` (acordarlo con Juan 
 { "token": "eyJ...", "expiresIn": 3600, "usuario": { "username": "vendedor", "nombre": "…", "rol": "VENDEDOR" } }
 ```
 El back debe permitir CORS desde `http://localhost:5173`. Para las demás peticiones usa `authHeader()` de `authService.js`.
+
+#### Endpoints que espera el front (acordarlos con back-end)
+Todas con cabecera `Authorization: Bearer <token>`. Si responden 401 se cierra la sesión.
+Los errores pueden traer `{ "mensaje": "..." }` y se muestran tal cual al usuario.
+
+| Método | Ruta | Cuerpo |
+|---|---|---|
+| GET / POST | `/api/usuarios` | `{ username, password, nombre, rol }` |
+| PUT | `/api/usuarios/{id}` | `{ nombre, rol, password? }` |
+| PATCH | `/api/usuarios/{id}/estado` · `/api/productos/{id}/estado` | `{ activo }` |
+| GET / POST | `/api/productos` · PUT `/api/productos/{id}` | `{ codigo, nombre, categoria, unidad, precio, stockMinimo }` (respuesta con `existencias: { "1": n, "2": n }`) |
+| GET / POST | `/api/clientes` · GET/PUT `/api/clientes/{id}` | `{ tipo: FINAL\|MAYORISTA, documento, nombre, telefono, email, direccion }` |
+| GET | `/api/ventas?vendedor=&clienteId=` · `/api/ventas/{id}` | |
+| POST | `/api/ventas` | `{ clienteId, canal, bodegaId, direccionEntrega, observaciones, items: [{ productoId, cantidad }] }` → venta con `factura: { numero, fecha }` |
+| POST | `/api/ventas/{id}/anular` | `{ motivo }` |
+| POST | `/api/ventas/{id}/despacho/avanzar` | |
+| GET | `/api/inventario/movimientos` | |
+| POST | `/api/inventario/entradas` | `{ productoId, bodegaId, cantidad, proveedor, referencia }` |
+| POST | `/api/inventario/traslados` | `{ productoId, bodegaOrigenId, bodegaId, cantidad, referencia }` |
+| GET / PUT | `/api/indicadores/meta` | `{ metaMensual }` |
+
+La forma exacta de cada objeto está en `src/services/semillas.js`.
 
 ### 7. Subir a GitHub ligado a Jira (EL-73)
 Si el equipo ya tiene repositorio, clónalo y copia estos archivos dentro (en una carpeta `frontend/` si el repo es compartido con el back). Luego:

@@ -1,20 +1,17 @@
 // Servicio de autenticación. Usa usuarios de prueba (mock) o el back-end real según .env.
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '');
+import { API_URL, USE_MOCK } from './config';
+import { esperar, leer } from './mockDb';
+
 const STORAGE_KEY = 'msv_sesion';
 export const MENSAJE_CREDENCIALES = 'Usuario o contraseña incorrectos.';
 const DURACION_SESION = 3600; // segundos (1 hora)
 
-const USUARIOS_MOCK = [
-  { username: 'admin', password: 'admin123', nombre: 'Administrador del sistema', rol: 'ADMIN' },
-  { username: 'vendedor', password: 'vendedor123', nombre: 'Vendedor de prueba', rol: 'VENDEDOR' },
-  { username: 'bodega', password: 'bodega123', nombre: 'Encargado de bodega', rol: 'BODEGA' },
-  { username: 'gerente', password: 'gerente123', nombre: 'Gerente general', rol: 'GERENTE' },
-];
-
 async function loginMock(username, password) {
-  await new Promise((r) => setTimeout(r, 400)); // simula la red
-  const u = USUARIOS_MOCK.find((x) => x.username === username && x.password === password);
+  await esperar(400); // simula la red
+  // Los usuarios viven en la "base" mock: los creados en el módulo Usuarios también entran.
+  const u = leer('usuarios').find(
+    (x) => x.username === username && x.password === password && x.activo
+  );
   if (!u) throw new Error(MENSAJE_CREDENCIALES);
   return {
     token: `mock-token-${u.username}-${Date.now()}`,
