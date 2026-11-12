@@ -1,5 +1,8 @@
 // Servicio de autenticación contra el back-end real (Spring Boot).
+// Con VITE_USE_MOCK=true usa usuarios de prueba (authMock.js) para poder probar los módulos.
 import { peticion, ApiError } from './apiClient';
+import * as mock from './authMock';
+import { USE_MOCK } from './config';
 import {
   API_URL,
   ENDPOINTS,
@@ -53,9 +56,9 @@ export function obtenerSesion() {
 
 export async function login(correo, contrasena) {
   try {
-    const tokens = await peticion(ENDPOINTS.INICIAR_SESION, {
-      cuerpo: { correo: correo.trim(), contrasena },
-    });
+    const tokens = USE_MOCK
+      ? await mock.login(correo, contrasena)
+      : await peticion(ENDPOINTS.INICIAR_SESION, { cuerpo: { correo: correo.trim(), contrasena } });
     return guardarSesion(tokens);
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) throw new ApiError(401, err.codigo, MENSAJES.CREDENCIALES);
@@ -64,6 +67,7 @@ export async function login(correo, contrasena) {
 }
 
 export async function registrar({ nombreCompleto, telefono, direccion, fechaNacimiento, correo, contrasena }) {
+  if (USE_MOCK) return guardarSesion(await mock.registrar({ nombreCompleto, correo, contrasena }));
   const tokens = await peticion(ENDPOINTS.REGISTRAR_CUSTOMER, {
     cuerpo: {
       nombreCompleto: nombreCompleto.trim(),
@@ -80,6 +84,7 @@ export async function registrar({ nombreCompleto, telefono, direccion, fechaNaci
 // Navega (no usa fetch) al back, que redirige a Google. Al volver, el back redirige a
 // /oauth2/callback?codigo=... y ahí se llama a intercambiarCodigo.
 export function iniciarConGoogle() {
+  if (USE_MOCK) throw mock.errorGoogle();
   window.location.assign(`${API_URL}${ENDPOINTS.GOOGLE_AUTORIZACION}`);
 }
 
@@ -95,7 +100,10 @@ export function refrescar() {
   if (refrescoEnCurso) return refrescoEnCurso;
   const actual = obtenerSesion();
   if (!actual) return Promise.reject(new ApiError(401, 'sin_sesion', MENSAJES.SESION_EXPIRADA));
-  refrescoEnCurso = peticion(ENDPOINTS.REFRESCAR_TOKEN, { cuerpo: { refreshToken: actual.refreshToken } })
+  const pedirTokens = USE_MOCK
+    ? mock.refrescar(actual.refreshToken)
+    : peticion(ENDPOINTS.REFRESCAR_TOKEN, { cuerpo: { refreshToken: actual.refreshToken } });
+  refrescoEnCurso = pedirTokens
     .then(guardarSesion)
     .catch((err) => {
       if (err instanceof ApiError && err.status === 401) borrarSesion();
@@ -111,7 +119,7 @@ export function refrescar() {
 export async function logout() {
   const s = obtenerSesion();
   borrarSesion();
-  if (!s) return;
+  if (!s || USE_MOCK) return;
   try {
     await peticion(ENDPOINTS.CERRAR_SESION, {
       token: s.accessToken,
