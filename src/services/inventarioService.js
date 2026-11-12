@@ -78,8 +78,22 @@ const mock = {
 
 const api = {
   listarMovimientos: () => http('/inventario/movimientos'),
-  registrarEntrada: (datos) => http('/inventario/entradas', { method: 'POST', body: datos }),
-  registrarTraslado: (datos) => http('/inventario/traslados', { method: 'POST', body: datos }),
+  registrarEntrada: (d) =>
+    http('/inventario/entradas', {
+      method: 'POST',
+      body: {
+        productoId: Number(d.productoId), bodegaId: Number(d.bodegaId), cantidad: Number(d.cantidad),
+        proveedor: d.proveedor.trim(), referencia: d.referencia.trim(),
+      },
+    }),
+  registrarTraslado: (d) =>
+    http('/inventario/traslados', {
+      method: 'POST',
+      body: {
+        productoId: Number(d.productoId), bodegaOrigenId: Number(d.bodegaOrigenId), bodegaId: Number(d.bodegaId),
+        cantidad: Number(d.cantidad), referencia: d.referencia.trim(),
+      },
+    }),
   obtenerMeta: async () => (await http('/indicadores/meta')).metaMensual,
   guardarMeta: async (metaMensual) =>
     (await http('/indicadores/meta', { method: 'PUT', body: { metaMensual } })).metaMensual,

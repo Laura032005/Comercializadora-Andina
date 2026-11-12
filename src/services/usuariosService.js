@@ -52,8 +52,17 @@ const mock = {
 
 const api = {
   listar: () => http('/usuarios'),
-  crear: (datos) => http('/usuarios', { method: 'POST', body: datos }),
-  actualizar: (id, datos) => http(`/usuarios/${id}`, { method: 'PUT', body: datos }),
+  crear: (d) =>
+    http('/usuarios', {
+      method: 'POST',
+      body: { correo: d.correo.trim().toLowerCase(), nombre: d.nombre.trim(), rol: d.rol, password: d.password },
+    }),
+  // password solo se envía si se escribió una nueva.
+  actualizar: (id, d) =>
+    http(`/usuarios/${id}`, {
+      method: 'PUT',
+      body: { nombre: d.nombre.trim(), rol: d.rol, ...(d.password ? { password: d.password } : {}) },
+    }),
   cambiarEstado: (id, activo) => http(`/usuarios/${id}/estado`, { method: 'PATCH', body: { activo } }),
 };
 

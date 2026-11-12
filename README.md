@@ -65,27 +65,10 @@ Con `VITE_USE_MOCK=false` (o sin la variable) todo va contra el back-end real.
 Los permisos están en `src/config/modulos.js`. Los roles CUSTOMER y WORKER del back-end todavía no
 tienen módulos: el back debe agregar ADMIN, VENDEDOR, BODEGA, GERENTE y CONTADOR.
 
-## Endpoints que esperan los módulos (pendientes en el back-end)
+## Back-end de los módulos
 
-Prefijo `/api/v1`, cabecera `Authorization: Bearer <accessToken>`. Si responden 401 el front renueva el
-token una vez y reintenta. Los errores en ProblemDetail (`detail`) se muestran al usuario.
-
-| Método | Ruta | Cuerpo |
-|---|---|---|
-| GET / POST | `/usuarios` · PUT `/usuarios/{id}` | `{ correo, password, nombre, rol }` |
-| PATCH | `/usuarios/{id}/estado` · `/productos/{id}/estado` | `{ activo }` |
-| GET / POST | `/productos` · PUT `/productos/{id}` | `{ codigo, nombre, categoria, unidad, precio, stockMinimo }` → con `existencias: { "1": n, "2": n }` |
-| GET / POST | `/clientes` · GET / PUT `/clientes/{id}` | `{ tipo: FINAL o MAYORISTA, documento, nombre, telefono, email, direccion }` |
-| GET | `/ventas?vendedor=&clienteId=` · `/ventas/{id}` | |
-| POST | `/ventas` | `{ clienteId, canal, bodegaId, direccionEntrega, observaciones, items: [{ productoId, cantidad }] }` → venta con `factura: { numero, fecha }` |
-| POST | `/ventas/{id}/anular` | `{ motivo }` |
-| POST | `/ventas/{id}/despacho/avanzar` | |
-| GET | `/inventario/movimientos` | |
-| POST | `/inventario/entradas` | `{ productoId, bodegaId, cantidad, proveedor, referencia }` |
-| POST | `/inventario/traslados` | `{ productoId, bodegaOrigenId, bodegaId, cantidad, referencia }` |
-| GET / PUT | `/indicadores/meta` | `{ metaMensual }` |
-
-La forma exacta de cada objeto está en `src/services/semillas.js`.
+Todo lo que el back debe exponer (endpoints, JSON, roles, permisos y reglas de negocio) está en
+**[docs/CONTRATO-API.md](docs/CONTRATO-API.md)**. Para probar contra el back real: `VITE_USE_MOCK=false`.
 
 ## Estructura de `src/`
 

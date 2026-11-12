@@ -129,7 +129,18 @@ const mock = {
 const api = {
   listar: (filtros = {}) => http(`/ventas${query(filtros)}`),
   obtener: (id) => http(`/ventas/${id}`),
-  registrar: (datos) => http('/ventas', { method: 'POST', body: datos }),
+  registrar: (d) =>
+    http('/ventas', {
+      method: 'POST',
+      body: {
+        clienteId: Number(d.clienteId),
+        canal: d.canal,
+        bodegaId: Number(d.bodegaId),
+        direccionEntrega: (d.direccionEntrega || '').trim(),
+        observaciones: (d.observaciones || '').trim(),
+        items: d.items.map((it) => ({ productoId: Number(it.productoId), cantidad: Number(it.cantidad) })),
+      },
+    }),
   anular: (id, motivo) => http(`/ventas/${id}/anular`, { method: 'POST', body: { motivo } }),
   avanzarDespacho: (id) => http(`/ventas/${id}/despacho/avanzar`, { method: 'POST' }),
 };
