@@ -1,54 +1,31 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import * as authService from '../services/authService';
+import { createContext, useContext, useEffect, useMemo } from 'react';
+import useSesion from '../hooks/useSesion';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [sesion, setSesion] = useState(() => authService.obtenerSesion());
+  const sesion = useSesion();
+  const { logout } = sesion;
 
-  const logout = useCallback(() => {
-    authService.logout();
-    setSesion(null);
-  }, []);
-
-  const login = useCallback(async (usuario, password) => {
-    const nueva = await authService.login(usuario, password);
-    setSesion(nueva);
-    return nueva;
-  }, []);
-
-  // Cierra la sesión automáticamente cuando vence el token.
+  // Si una petición de los módulos recibe 401 y no se pudo renovar el token, se cierra la sesión.
   useEffect(() => {
-    if (!sesion) return undefined;
-    const restante = sesion.expiraEn - Date.now();
-    if (restante <= 0) {
-      logout();
-      return undefined;
-    }
-    const t = setTimeout(logout, restante);
-    return () => clearTimeout(t);
-  }, [sesion, logout]);
+    const cerrar = () => logout();
+    window.addEventListener('msv:no-autorizado', cerrar);
+    return () => window.removeEventListener('msv:no-autorizado', cerrar);
+  }, [logout]);
 
-  // Si el back responde 401 en cualquier petición, se cierra la sesión.
-  useEffect(() => {
-    const alExpirar = () => setSesion(null);
-    window.addEventListener('msv:sesion-expirada', alExpirar);
-    return () => window.removeEventListener('msv:sesion-expirada', alExpirar);
-  }, []);
+  // Los módulos usan `nombre` y `username` (el correo identifica al usuario en ventas y movimientos).
+  const usuario = useMemo(
+    () =>
+      sesion.usuario && {
+        ...sesion.usuario,
+        nombre: sesion.usuario.nombreCompleto ?? sesion.usuario.nombre,
+        username: sesion.usuario.correo,
+      },
+    [sesion.usuario]
+  );
 
-  const rol = sesion?.usuario?.rol ?? null;
-  const tieneRol = useCallback((roles) => !roles || roles.includes(rol), [rol]);
-
-  const value = {
-    sesion,
-    usuario: sesion?.usuario ?? null,
-    rol,
-    autenticado: Boolean(sesion),
-    tieneRol,
-    login,
-    logout,
-  };
-
+  const value = useMemo(() => ({ ...sesion, usuario }), [sesion, usuario]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

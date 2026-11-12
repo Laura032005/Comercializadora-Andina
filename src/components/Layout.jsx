@@ -1,71 +1,68 @@
-import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MENU, NOMBRE_ROL } from '../config/roles';
-import './Layout.css';
+import { modulosDeRol, tituloModulo } from '../config/modulos';
+import { ROLES } from '../services/catalogos';
+import { USE_MOCK as usandoMock } from '../services/config';
 
+// Estructura común de las pantallas internas: menú lateral + contenido.
 export default function Layout() {
-  const { usuario, tieneRol, logout } = useAuth();
+  const { usuario, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const modulos = modulosDeRol(usuario.rol);
 
-  useEffect(() => setMenuAbierto(false), [location.pathname]);
-
-  const opciones = MENU.filter((op) => tieneRol(op.roles));
-
-  function cerrarSesion() {
-    logout();
+  async function cerrarSesion() {
+    await logout();
     navigate('/login', { replace: true });
   }
 
+  const cerrarMenu = () => setMenuAbierto(false);
+
   return (
-    <div className={`app ${menuAbierto ? 'menu-abierto' : ''}`}>
-      <aside className="sidebar" aria-label="Menú principal">
-        <div className="sidebar-marca">
-          <div className="sidebar-logo" aria-hidden="true">CA</div>
+    <div className="app">
+      <aside className={`lateral${menuAbierto ? ' lateral-abierto' : ''}`}>
+        <div className="lateral-marca">
+          <div className="lateral-logo" aria-hidden="true">CA</div>
           <div>
             <strong>Comercial Andina</strong>
             <span>Sistema de Ventas</span>
           </div>
+          <button
+            type="button"
+            className="lateral-toggle"
+            onClick={() => setMenuAbierto((v) => !v)}
+            aria-expanded={menuAbierto}
+            aria-controls="menu-principal"
+          >
+            Menú
+          </button>
         </div>
-        <nav className="sidebar-nav">
-          {opciones.map((op) => (
-            <NavLink key={op.ruta} to={op.ruta} className="sidebar-link">
-              <span className="sidebar-icono" aria-hidden="true">{op.icono}</span>
-              {op.texto}
+
+        <nav id="menu-principal" className="lateral-nav" aria-label="Módulos">
+          <NavLink to="/menu" end onClick={cerrarMenu}>
+            <span aria-hidden="true">🏠</span> Inicio
+          </NavLink>
+          {modulos.map((m) => (
+            <NavLink key={m.ruta} to={m.ruta} end onClick={cerrarMenu}>
+              <span aria-hidden="true">{m.icono}</span> {tituloModulo(m, usuario.rol)}
             </NavLink>
           ))}
         </nav>
+
+        <div className="lateral-usuario">
+          <p className="lateral-nombre">{usuario.nombre}</p>
+          <p className="lateral-detalle">{usuario.correo} · {ROLES[usuario.rol] ?? usuario.rol}</p>
+          {usandoMock && <p className="lateral-detalle">Modo de prueba (datos simulados)</p>}
+          <button type="button" className="btn btn-secundario btn-bloque" onClick={cerrarSesion}>
+            Cerrar sesión
+          </button>
+        </div>
       </aside>
 
-      {menuAbierto && <div className="sidebar-fondo" onClick={() => setMenuAbierto(false)} />}
-
-      <div className="contenido">
-        <header className="topbar">
-          <button
-            type="button"
-            className="btn-menu"
-            onClick={() => setMenuAbierto((v) => !v)}
-            aria-label="Abrir menú"
-            aria-expanded={menuAbierto}
-          >
-            ☰
-          </button>
-          <div className="topbar-usuario">
-            <div className="topbar-datos">
-              <strong>{usuario?.nombre || usuario?.username}</strong>
-              <span>{NOMBRE_ROL[usuario?.rol] || usuario?.rol}</span>
-            </div>
-            <button type="button" className="btn btn-secundario btn-sm" onClick={cerrarSesion}>
-              Cerrar sesión
-            </button>
-          </div>
-        </header>
-        <main className="pagina">
-          <Outlet />
-        </main>
-      </div>
+      <main className="contenido">
+        <Outlet />
+      </main>
     </div>
   );
 }

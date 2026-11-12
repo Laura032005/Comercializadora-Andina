@@ -60,3 +60,27 @@
 }
 
 .login-form .btn { width: 100%; padding: 0.8rem; margin-top: 0.25rem; }
+
+.login-nota {
+  margin-top: 1.25rem; text-align: center;
+  font-size: 0.78rem; color: var(--color-texto-suave);
+}
+
+.login-card-ancha { max-width: 460px; }
+
+.login-nota a { color: var(--color-primario); font-weight: 600; }
+
+.ayuda-campo { margin: -0.5rem 0 0; font-size: 0.78rem; color: var(--color-texto-suave); }
+
+.separador {
+  display: flex; align-items: center; gap: 0.75rem; margin: 1.1rem 0;
+  color: var(--color-texto-suave); font-size: 0.85rem;
+}
+.separador::before, .separador::after { content: ''; flex: 1; height: 1px; background: var(--color-borde); }
+
+.btn-google {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+  padding: 0.75rem; border: 1px solid var(--color-borde); border-radius: 8px;
+  background: #fff; color: var(--color-texto); font-weight: 600;
+}
+.btn-google:hover:not(:disabled) { background: #f4f7fa; border-color: #9aa7b4; }

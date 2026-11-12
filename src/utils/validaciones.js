@@ -1,108 +1,72 @@
-// Reglas de validación de los formularios.
-export const MIN_USUARIO = 3;
-export const MAX_USUARIO = 50;
-export const MIN_PASSWORD = 6;
-
-// ---------- Login (HU17) ----------
-export function validarUsuario(valor) {
-  const v = (valor ?? '').trim();
-  if (!v) return 'El usuario es obligatorio.';
-  if (v.length < MIN_USUARIO) return `El usuario debe tener al menos ${MIN_USUARIO} caracteres.`;
-  if (v.length > MAX_USUARIO) return `El usuario no puede superar ${MAX_USUARIO} caracteres.`;
-  if (!/^[A-Za-z0-9._-]+$/.test(v)) return 'El usuario solo puede tener letras, números, punto, guion y guion bajo.';
-  return '';
-}
-
-export function validarPassword(valor) {
-  const v = valor ?? '';
-  if (!v) return 'La contraseña es obligatoria.';
-  if (v.length < MIN_PASSWORD) return `La contraseña debe tener al menos ${MIN_PASSWORD} caracteres.`;
-  return '';
-}
-
-export function validarLogin({ usuario, password }) {
-  return limpiar({ usuario: validarUsuario(usuario), password: validarPassword(password) });
-}
-
-// ---------- Clientes (HU01 / HU03) ----------
-const REGEX_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const REGEX_TELEFONO = /^\+?[0-9]{7,15}$/;
+// Reglas de los formularios de login y registro. Cada validador devuelve '' si es válido.
+import { REGLAS } from './constantes';
 
 export function validarCorreo(valor) {
   const v = (valor ?? '').trim();
   if (!v) return 'El correo es obligatorio.';
-  if (!REGEX_CORREO.test(v)) return 'Ingresa un correo válido (ej. nombre@dominio.com).';
+  if (v.length > REGLAS.CORREO_MAX) return `El correo no puede superar ${REGLAS.CORREO_MAX} caracteres.`;
+  if (!REGLAS.REGEX_CORREO.test(v)) return 'Ingresa un correo válido.';
+  return '';
+}
+
+// En el login solo se exige que no esté vacía (la política se aplica al registrarse).
+export function validarPasswordLogin(valor) {
+  return valor ? '' : 'La contraseña es obligatoria.';
+}
+
+export function validarPasswordNueva(valor) {
+  const v = valor ?? '';
+  if (!v) return 'La contraseña es obligatoria.';
+  if (v.length < REGLAS.PASSWORD_MIN) return `Debe tener al menos ${REGLAS.PASSWORD_MIN} caracteres.`;
+  if (v.length > REGLAS.PASSWORD_MAX) return `No puede superar ${REGLAS.PASSWORD_MAX} caracteres.`;
+  if (!/[A-Z]/.test(v)) return 'Debe incluir al menos una mayúscula.';
+  if (!/\d/.test(v)) return 'Debe incluir al menos un número.';
+  if (!/[^A-Za-z0-9]/.test(v)) return 'Debe incluir al menos un símbolo.';
+  return '';
+}
+
+export function validarConfirmacion(valor, valores) {
+  if (!valor) return 'Confirma la contraseña.';
+  return valor === valores.contrasena ? '' : 'Las contraseñas no coinciden.';
+}
+
+export function validarNombre(valor) {
+  const v = (valor ?? '').trim();
+  if (!v) return 'El nombre completo es obligatorio.';
+  if (v.length > REGLAS.NOMBRE_MAX) return `No puede superar ${REGLAS.NOMBRE_MAX} caracteres.`;
   return '';
 }
 
 export function validarTelefono(valor) {
-  const v = (valor ?? '').replace(/[\s-]/g, '');
-  if (!v) return 'El teléfono es obligatorio.';
-  if (!REGEX_TELEFONO.test(v)) return 'El teléfono debe tener entre 7 y 15 dígitos.';
+  const v = (valor ?? '').trim();
+  if (!v) return ''; // opcional
+  return REGLAS.REGEX_TELEFONO_E164.test(v) ? '' : 'Usa formato internacional, por ejemplo +573001234567.';
+}
+
+export function validarDireccion(valor) {
+  const v = (valor ?? '').trim();
+  if (!v) return 'La dirección es obligatoria.';
+  if (v.length > REGLAS.DIRECCION_MAX) return `No puede superar ${REGLAS.DIRECCION_MAX} caracteres.`;
   return '';
 }
 
-export function validarCliente(c, { esEdicion = false } = {}) {
-  const errores = {};
-  if (!esEdicion) {
-    const id = (c.identificacion ?? '').trim();
-    if (!id) errores.identificacion = 'La identificación es obligatoria.';
-    else if (!/^[0-9A-Za-z-]{5,20}$/.test(id)) {
-      errores.identificacion = 'La identificación debe tener entre 5 y 20 caracteres (números, letras o guion).';
-    }
-    const nombre = (c.nombre ?? '').trim();
-    if (!nombre) errores.nombre = 'El nombre es obligatorio.';
-    else if (nombre.length < 3) errores.nombre = 'El nombre debe tener al menos 3 caracteres.';
-    else if (nombre.length > 120) errores.nombre = 'El nombre no puede superar 120 caracteres.';
-  }
-  if (!c.tipo) errores.tipo = 'Selecciona el tipo de cliente.';
-  errores.telefono = validarTelefono(c.telefono);
-  errores.correo = validarCorreo(c.correo);
-  if ((c.direccion ?? '').length > 200) errores.direccion = 'La dirección no puede superar 200 caracteres.';
-  return limpiar(errores);
+export function validarFechaNacimiento(valor) {
+  if (!valor) return 'La fecha de nacimiento es obligatoria.';
+  const hoy = new Date().toISOString().slice(0, 10);
+  return valor < hoy ? '' : 'La fecha de nacimiento debe ser anterior a hoy.';
 }
 
-// ---------- Productos (HU05 / HU07) ----------
-export function validarProducto(p, { esEdicion = false } = {}) {
-  const errores = {};
-  if (!esEdicion) {
-    const codigo = (p.codigo ?? '').trim();
-    if (!codigo) errores.codigo = 'El código es obligatorio.';
-    else if (!/^[A-Za-z0-9-_]{2,30}$/.test(codigo)) {
-      errores.codigo = 'El código debe tener entre 2 y 30 caracteres (letras, números, guion).';
-    }
-  }
-  const nombre = (p.nombre ?? '').trim();
-  if (!nombre) errores.nombre = 'El nombre es obligatorio.';
-  else if (nombre.length > 120) errores.nombre = 'El nombre no puede superar 120 caracteres.';
-  if (!(p.categoria ?? '').trim()) errores.categoria = 'La categoría es obligatoria.';
+export const validadoresLogin = {
+  correo: validarCorreo,
+  contrasena: validarPasswordLogin,
+};
 
-  const precio = Number(p.precio);
-  if (p.precio === '' || p.precio === null || Number.isNaN(precio)) errores.precio = 'El precio es obligatorio.';
-  else if (precio <= 0) errores.precio = 'El precio debe ser mayor que cero.';
-
-  if (!esEdicion) {
-    errores.stock = validarEnteroNoNegativo(p.stock, 'El stock inicial');
-  }
-  errores.stockMinimo = validarEnteroNoNegativo(p.stockMinimo, 'El stock mínimo');
-  return limpiar(errores);
-}
-
-function validarEnteroNoNegativo(valor, etiqueta) {
-  if (valor === '' || valor === null || valor === undefined) return `${etiqueta} es obligatorio.`;
-  const n = Number(valor);
-  if (!Number.isInteger(n)) return `${etiqueta} debe ser un número entero.`;
-  if (n < 0) return `${etiqueta} no puede ser negativo.`;
-  return '';
-}
-
-// ---------- Pedidos (HU11) ----------
-export function validarCantidad(valor) {
-  const n = Number(valor);
-  if (!Number.isInteger(n) || n <= 0) return 'La cantidad debe ser un entero mayor que cero.';
-  return '';
-}
-
-function limpiar(errores) {
-  return Object.fromEntries(Object.entries(errores).filter(([, v]) => v));
-}
+export const validadoresRegistro = {
+  nombreCompleto: validarNombre,
+  telefono: validarTelefono,
+  direccion: validarDireccion,
+  fechaNacimiento: validarFechaNacimiento,
+  correo: validarCorreo,
+  contrasena: validarPasswordNueva,
+  confirmacion: validarConfirmacion,
+};

@@ -1,154 +1,89 @@
-import { useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { PERMISOS } from '../../config/roles';
-import { useCarga } from '../../hooks/useCarga';
-import { historialCliente, obtenerCliente } from '../../services/clientesService';
-import { Alerta, Cargando, Encabezado, EstadoPedido, Vacio } from '../../components/ui';
-import { formatoFecha, formatoMoneda, NOMBRE_TIPO_CLIENTE } from '../../utils/formato';
+import { Link, useParams } from 'react-router-dom';
+import { useDatos } from '../../hooks/useDatos';
+import clientesService from '../../services/clientesService';
+import ventasService from '../../services/ventasService';
+import { TIPOS_CLIENTE } from '../../services/catalogos';
+import { formatoFecha, formatoMoneda, formatoNumero } from '../../utils/formato';
+import { EncabezadoPagina, EstadoDatos, Indicador } from '../../components/UI';
+import { InsigniaVenta } from '../../components/Insignias';
 
-function ordenarPorFechaDesc(pedidos) {
-  return [...pedidos].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-}
-
-// HU04 - Historial de pedidos del cliente
-function HistorialPedidos({ clienteId }) {
-  const [filtro, setFiltro] = useState({ desde: '', hasta: '' });
-  const [aplicado, setAplicado] = useState({ desde: '', hasta: '' });
-  const [errorFiltro, setErrorFiltro] = useState('');
-
-  const { datos, cargando, error, recargar } = useCarga(
-    () => historialCliente(clienteId, aplicado),
-    [clienteId, aplicado.desde, aplicado.hasta]
-  );
-
-  function filtrar(e) {
-    e.preventDefault();
-    if (filtro.desde && filtro.hasta && filtro.desde > filtro.hasta) {
-      setErrorFiltro('La fecha inicial no puede ser posterior a la final.');
-      return;
-    }
-    setErrorFiltro('');
-    setAplicado({ ...filtro });
-  }
-
-  function limpiar() {
-    setFiltro({ desde: '', hasta: '' });
-    setAplicado({ desde: '', hasta: '' });
-    setErrorFiltro('');
-  }
-
-  const pedidos = ordenarPorFechaDesc(datos ?? []);
-  const hayFiltro = aplicado.desde || aplicado.hasta;
-
-  return (
-    <div className="tarjeta">
-      <h2>Historial de pedidos</h2>
-      <form className="filtros" onSubmit={filtrar} style={{ marginBottom: '1rem' }}>
-        <div className="campo campo-angosto">
-          <label htmlFor="desde">Desde</label>
-          <input id="desde" type="date" value={filtro.desde} onChange={(e) => setFiltro((f) => ({ ...f, desde: e.target.value }))} />
-        </div>
-        <div className="campo campo-angosto">
-          <label htmlFor="hasta">Hasta</label>
-          <input id="hasta" type="date" value={filtro.hasta} onChange={(e) => setFiltro((f) => ({ ...f, hasta: e.target.value }))} />
-        </div>
-        <button type="submit" className="btn">Filtrar</button>
-        {hayFiltro && <button type="button" className="btn btn-secundario" onClick={limpiar}>Quitar filtro</button>}
-      </form>
-      <Alerta>{errorFiltro}</Alerta>
-
-      {cargando ? (
-        <Cargando />
-      ) : error ? (
-        <Alerta>
-          {error} <button type="button" className="btn-link" onClick={recargar}>Reintentar</button>
-        </Alerta>
-      ) : pedidos.length === 0 ? (
-        <Vacio titulo={hayFiltro ? 'No hay pedidos en ese rango de fechas' : 'Este cliente no tiene pedidos'} />
-      ) : (
-        <div className="tabla-contenedor">
-          <table className="tabla">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Número</th>
-                <th className="num">Total</th>
-                <th>Estado</th>
-                <th className="acciones" />
-              </tr>
-            </thead>
-            <tbody>
-              {pedidos.map((p) => (
-                <tr key={p.id}>
-                  <td>{formatoFecha(p.fecha, true)}</td>
-                  <td>{p.numero}</td>
-                  <td className="num">{formatoMoneda(p.total)}</td>
-                  <td><EstadoPedido estado={p.estado} /></td>
-                  <td className="acciones">
-                    <Link to={`/pedidos/${p.id}`} className="btn btn-secundario btn-sm">Ver pedido</Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
+// Historial de compras de un cliente: qué compra, cuánto y cada cuánto.
 export default function ClienteDetallePage() {
   const { id } = useParams();
-  const { tieneRol } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [mensaje, setMensaje] = useState(location.state?.mensaje || '');
+  const { datos, cargando, error, recargar } = useDatos(
+    () => Promise.all([clientesService.obtener(id), ventasService.listar({ clienteId: id })]),
+    [id]
+  );
 
-  const { datos: cliente, cargando, error } = useCarga(() => obtenerCliente(id), [id]);
+  const [cliente, ventas = []] = datos ?? [];
+  const validas = ventas.filter((v) => v.estado !== 'ANULADA');
+  const total = validas.reduce((s, v) => s + v.total, 0);
 
-  function cerrarMensaje() {
-    setMensaje('');
-    navigate(location.pathname, { replace: true, state: null });
-  }
-
-  if (cargando) return <Cargando />;
-  if (error) {
-    return (
-      <>
-        <Link to="/clientes" className="volver">← Volver a clientes</Link>
-        <Alerta>{error}</Alerta>
-      </>
-    );
-  }
+  const porProducto = {};
+  validas.forEach((v) =>
+    v.items.forEach((it) => {
+      const r = (porProducto[it.productoId] ??= { nombre: it.nombre, unidad: it.unidad, cantidad: 0, total: 0 });
+      r.cantidad += it.cantidad;
+      r.total += it.subtotal;
+    })
+  );
+  const productosFrecuentes = Object.values(porProducto).sort((a, b) => b.total - a.total).slice(0, 5);
 
   return (
-    <>
-      <Link to="/clientes" className="volver">← Volver a clientes</Link>
-      <Encabezado titulo={cliente.nombre} descripcion={`Identificación ${cliente.identificacion}`}>
-        {tieneRol(PERMISOS.pedidosCrear) && (
-          <Link to={`/pedidos/nuevo?cliente=${cliente.id}`} className="btn btn-secundario">Nuevo pedido</Link>
-        )}
-        {tieneRol(PERMISOS.clientesEditar) && (
-          <Link to={`/clientes/${cliente.id}/editar`} className="btn">Editar</Link>
-        )}
-      </Encabezado>
+    <EstadoDatos cargando={cargando && !datos} error={error} onReintentar={recargar}>
+      {cliente && (
+        <>
+          <EncabezadoPagina
+            titulo={cliente.nombre}
+            descripcion={`${TIPOS_CLIENTE[cliente.tipo]} · Doc. ${cliente.documento}${cliente.telefono ? ` · Tel. ${cliente.telefono}` : ''} · ${cliente.direccion || 'Sin dirección'}`}
+            acciones={<Link className="btn btn-secundario" to="/clientes">Volver a clientes</Link>}
+          />
 
-      <Alerta tipo="exito" onCerrar={cerrarMensaje}>{mensaje}</Alerta>
+          <div className="indicadores">
+            <Indicador titulo="Compras" valor={formatoNumero(validas.length)} />
+            <Indicador titulo="Total comprado (con IVA)" valor={formatoMoneda(total)} />
+            <Indicador titulo="Compra promedio" valor={formatoMoneda(validas.length ? total / validas.length : 0)} />
+            <Indicador titulo="Última compra" valor={formatoFecha(validas[0]?.fecha, false)} />
+          </div>
 
-      <div className="tarjeta">
-        <h2>Datos del cliente</h2>
-        <dl className="datos">
-          <div><dt>Identificación</dt><dd>{cliente.identificacion}</dd></div>
-          <div><dt>Nombre</dt><dd>{cliente.nombre}</dd></div>
-          <div><dt>Tipo</dt><dd>{NOMBRE_TIPO_CLIENTE[cliente.tipo] || cliente.tipo}</dd></div>
-          <div><dt>Teléfono</dt><dd>{cliente.telefono || '—'}</dd></div>
-          <div><dt>Correo</dt><dd>{cliente.correo || '—'}</dd></div>
-          <div><dt>Dirección</dt><dd>{cliente.direccion || '—'}</dd></div>
-        </dl>
-      </div>
+          <div className="dos-columnas">
+            <section className="panel">
+              <h2>Historial de compras</h2>
+              <EstadoDatos vacio={ventas.length === 0} textoVacio="Este cliente aún no tiene compras.">
+                <div className="tabla-contenedor">
+                  <table className="tabla">
+                    <thead><tr><th>Venta</th><th>Fecha</th><th className="num">Total</th><th>Estado</th></tr></thead>
+                    <tbody>
+                      {ventas.map((v) => (
+                        <tr key={v.id}>
+                          <td><Link to={`/ventas/${v.id}`}>{v.numero}</Link></td>
+                          <td>{formatoFecha(v.fecha)}</td>
+                          <td className="num">{formatoMoneda(v.total)}</td>
+                          <td><InsigniaVenta venta={v} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </EstadoDatos>
+            </section>
 
-      <HistorialPedidos clienteId={cliente.id} />
-    </>
+            <section className="panel">
+              <h2>Productos que más compra</h2>
+              <EstadoDatos vacio={productosFrecuentes.length === 0} textoVacio="Sin datos.">
+                <ul className="lista-simple">
+                  {productosFrecuentes.map((p) => (
+                    <li key={p.nombre}>
+                      <span>{p.nombre}</span>
+                      <span className="texto-suave">{formatoNumero(p.cantidad)} {p.unidad} · {formatoMoneda(p.total)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </EstadoDatos>
+            </section>
+          </div>
+        </>
+      )}
+    </EstadoDatos>
   );
 }

@@ -1,34 +1,41 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
-import { PERMISOS } from './config/roles';
+import LoginPage from './pages/LoginPage';
+import RegistroPage from './pages/RegistroPage';
+import OAuthCallbackPage from './pages/OAuthCallbackPage';
+import MenuPage from './pages/MenuPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
-import LoginPage from './pages/LoginPage';
-import InicioPage from './pages/InicioPage';
-import NoEncontradaPage from './pages/NoEncontradaPage';
-import ClientesPage from './pages/clientes/ClientesPage';
-import ClienteFormPage from './pages/clientes/ClienteFormPage';
-import ClienteDetallePage from './pages/clientes/ClienteDetallePage';
+import { useAuth } from './context/AuthContext';
+import { rolesDe } from './config/modulos';
+import { RUTAS } from './utils/constantes';
+import UsuariosPage from './pages/usuarios/UsuariosPage';
 import ProductosPage from './pages/productos/ProductosPage';
-import ProductoFormPage from './pages/productos/ProductoFormPage';
-import ProductoDetallePage from './pages/productos/ProductoDetallePage';
-import PedidosPage from './pages/pedidos/PedidosPage';
-import PedidoFormPage from './pages/pedidos/PedidoFormPage';
-import PedidoDetallePage from './pages/pedidos/PedidoDetallePage';
-import VentasDiaPage from './pages/reportes/VentasDiaPage';
-import MasVendidosPage from './pages/reportes/MasVendidosPage';
-import BajoStockPage from './pages/reportes/BajoStockPage';
+import ClientesPage from './pages/clientes/ClientesPage';
+import ClienteDetallePage from './pages/clientes/ClienteDetallePage';
+import NuevaVentaPage from './pages/ventas/NuevaVentaPage';
+import VentasPage from './pages/ventas/VentasPage';
+import VentaDetallePage from './pages/ventas/VentaDetallePage';
+import FacturaPage from './pages/ventas/FacturaPage';
+import FacturacionPage from './pages/ventas/FacturacionPage';
+import InventarioPage from './pages/inventario/InventarioPage';
+import EntradasPage from './pages/inventario/EntradasPage';
+import DespachosPage from './pages/despachos/DespachosPage';
+import ReportesPage from './pages/reportes/ReportesPage';
+import IndicadoresPage from './pages/reportes/IndicadoresPage';
 
-function conRol(roles, elemento) {
-  return <ProtectedRoute roles={roles}>{elemento}</ProtectedRoute>;
-}
+// Detalle de venta y factura: cualquier rol que vea ventas, despachos o facturaciÃ³n.
+const ROLES_DETALLE_VENTA = ['ADMIN', 'VENDEDOR', 'GERENTE', 'BODEGA', 'CONTADOR'];
+
+const conRol = (ruta, elemento) => <ProtectedRoute roles={rolesDe(ruta)}>{elemento}</ProtectedRoute>;
 
 export default function App() {
   const { autenticado } = useAuth();
-
+  const publica = (pagina) => (autenticado ? <Navigate to={RUTAS.MENU} replace /> : pagina);
   return (
     <Routes>
-      <Route path="/login" element={autenticado ? <Navigate to="/inicio" replace /> : <LoginPage />} />
+      <Route path={RUTAS.LOGIN} element={publica(<LoginPage />)} />
+      <Route path={RUTAS.REGISTRO} element={publica(<RegistroPage />)} />
+      <Route path={RUTAS.OAUTH_CALLBACK} element={<OAuthCallbackPage />} />
 
       <Route
         element={
@@ -37,31 +44,32 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route path="/inicio" element={<InicioPage />} />
-
-        <Route path="/clientes" element={conRol(PERMISOS.clientesVer, <ClientesPage />)} />
-        <Route path="/clientes/nuevo" element={conRol(PERMISOS.clientesEditar, <ClienteFormPage />)} />
-        <Route path="/clientes/:id" element={conRol(PERMISOS.clientesVer, <ClienteDetallePage />)} />
-        <Route path="/clientes/:id/editar" element={conRol(PERMISOS.clientesEditar, <ClienteFormPage />)} />
-
-        <Route path="/productos" element={conRol(PERMISOS.productosVer, <ProductosPage />)} />
-        <Route path="/productos/nuevo" element={conRol(PERMISOS.productosEditar, <ProductoFormPage />)} />
-        <Route path="/productos/:id" element={conRol(PERMISOS.productosVer, <ProductoDetallePage />)} />
-        <Route path="/productos/:id/editar" element={conRol(PERMISOS.productosEditar, <ProductoFormPage />)} />
-
-        <Route path="/pedidos" element={conRol(PERMISOS.pedidosVer, <PedidosPage />)} />
-        <Route path="/pedidos/nuevo" element={conRol(PERMISOS.pedidosCrear, <PedidoFormPage />)} />
-        <Route path="/pedidos/:id" element={conRol(PERMISOS.pedidosVer, <PedidoDetallePage />)} />
-        <Route path="/pedidos/:id/editar" element={conRol(PERMISOS.pedidosCrear, <PedidoFormPage />)} />
-
-        <Route path="/reportes/ventas-dia" element={conRol(PERMISOS.reportesVentas, <VentasDiaPage />)} />
-        <Route path="/reportes/mas-vendidos" element={conRol(PERMISOS.reportesVentas, <MasVendidosPage />)} />
-        <Route path="/reportes/bajo-stock" element={conRol(PERMISOS.reportesStock, <BajoStockPage />)} />
-
-        <Route path="*" element={<NoEncontradaPage />} />
+        <Route path={RUTAS.MENU} element={<MenuPage />} />
+        <Route path="/ventas/nueva" element={conRol('/ventas/nueva', <NuevaVentaPage />)} />
+        <Route path="/ventas" element={conRol('/ventas', <VentasPage />)} />
+        <Route
+          path="/ventas/:id"
+          element={<ProtectedRoute roles={ROLES_DETALLE_VENTA}><VentaDetallePage /></ProtectedRoute>}
+        />
+        <Route path="/clientes" element={conRol('/clientes', <ClientesPage />)} />
+        <Route path="/clientes/:id" element={conRol('/clientes', <ClienteDetallePage />)} />
+        <Route path="/despachos" element={conRol('/despachos', <DespachosPage />)} />
+        <Route path="/inventario" element={conRol('/inventario', <InventarioPage />)} />
+        <Route path="/entradas" element={conRol('/entradas', <EntradasPage />)} />
+        <Route path="/productos" element={conRol('/productos', <ProductosPage />)} />
+        <Route path="/facturacion" element={conRol('/facturacion', <FacturacionPage />)} />
+        <Route path="/indicadores" element={conRol('/indicadores', <IndicadoresPage />)} />
+        <Route path="/reportes" element={conRol('/reportes', <ReportesPage />)} />
+        <Route path="/usuarios" element={conRol('/usuarios', <UsuariosPage />)} />
       </Route>
 
-      <Route path="/" element={<Navigate to={autenticado ? '/inicio' : '/login'} replace />} />
+      {/* La factura se imprime sin el menÃº lateral. */}
+      <Route
+        path="/ventas/:id/factura"
+        element={<ProtectedRoute roles={ROLES_DETALLE_VENTA}><FacturaPage /></ProtectedRoute>}
+      />
+
+      <Route path="*" element={<Navigate to={autenticado ? RUTAS.MENU : RUTAS.LOGIN} replace />} />
     </Routes>
   );
 }
