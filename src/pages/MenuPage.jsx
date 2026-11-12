@@ -1,62 +1,49 @@
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ESTADOS, ROLES, RUTAS } from '../utils/constantes';
+import { modulosDeRol, tituloModulo } from '../config/modulos';
+import { ROLES } from '../services/catalogos';
+import { ESTADOS } from '../utils/constantes';
 
-// Opciones por rol (pantalla temporal hasta tener los módulos reales).
-const OPCIONES_POR_ROL = {
-  [ROLES.CUSTOMER]: [
-    { titulo: 'Catálogo', descripcion: 'Explora los productos disponibles.' },
-    { titulo: 'Mis pedidos', descripcion: 'Consulta tus compras.' },
-    { titulo: 'Mi perfil', descripcion: 'Tus datos personales.' },
-  ],
-  [ROLES.WORKER]: [
-    { titulo: 'Ventas', descripcion: 'Registro y consulta de ventas.' },
-    { titulo: 'Inventario', descripcion: 'Existencias y movimientos.' },
-    { titulo: 'Despachos', descripcion: 'Preparar pedidos vendidos.' },
-  ],
-};
-
+// Pantalla de inicio: accesos a los módulos del rol.
 export default function MenuPage() {
-  const { usuario, logout } = useAuth();
-  const navigate = useNavigate();
-  const opciones = OPCIONES_POR_ROL[usuario?.rol] ?? [];
-
-  async function cerrarSesion() {
-    await logout();
-    navigate(RUTAS.LOGIN, { replace: true });
-  }
+  const { usuario } = useAuth();
+  const modulos = modulosDeRol(usuario.rol);
 
   return (
-    <div className="menu-page">
-      <header className="menu-header">
+    <>
+      <header className="pagina-encabezado">
         <div>
-          <h1>Bienvenido, {usuario.nombreCompleto}</h1>
+          <h1>Bienvenido, {usuario.nombre}</h1>
           <p>
-            {usuario.correo} · <span className="badge-rol">{usuario.rol}</span>
+            {usuario.correo} · <span className="badge-rol">{ROLES[usuario.rol] ?? usuario.rol}</span>
           </p>
         </div>
-        <button type="button" className="btn btn-secundario" onClick={cerrarSesion}>
-          Cerrar sesión
-        </button>
       </header>
 
       {usuario.estado === ESTADOS.PERFIL_INCOMPLETO && (
         <div className="alerta-aviso" role="status">
-          Tu perfil está incompleto (falta dirección y fecha de nacimiento). Podrás completarlo
-          próximamente.
+          Tu perfil está incompleto (falta dirección y fecha de nacimiento). Podrás completarlo próximamente.
         </div>
       )}
 
-      <div className="menu-grid">
-        {opciones.map((op) => (
-          <article key={op.titulo} className="menu-opcion">
-            <h3>{op.titulo}</h3>
-            <p>{op.descripcion}</p>
-          </article>
-        ))}
-      </div>
-
-      <p className="menu-expira">Tu sesión se renueva automáticamente mientras uses la aplicación.</p>
-    </div>
+      {modulos.length === 0 ? (
+        <div className="panel">
+          <p>
+            Tu rol (<strong>{usuario.rol}</strong>) todavía no tiene módulos asignados. Los módulos del sistema
+            son para Administrador, Vendedor, Bodega, Gerente y Contabilidad.
+          </p>
+        </div>
+      ) : (
+        <div className="menu-grid">
+          {modulos.map((m) => (
+            <Link key={m.ruta} to={m.ruta} className="menu-opcion">
+              <span className="menu-icono" aria-hidden="true">{m.icono}</span>
+              <h3>{tituloModulo(m, usuario.rol)}</h3>
+              <p>{m.descripcion}</p>
+            </Link>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
