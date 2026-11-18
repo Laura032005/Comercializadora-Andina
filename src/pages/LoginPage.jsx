@@ -6,6 +6,7 @@ import CampoTexto from '../components/CampoTexto';
 import BotonGoogle from '../components/BotonGoogle';
 import { validadoresLogin } from '../utils/validaciones';
 import { MENSAJES, RUTAS } from '../utils/constantes';
+import { USE_MOCK } from '../services/config';
 import './LoginPage.css';
 
 export default function LoginPage() {
@@ -36,8 +37,13 @@ export default function LoginPage() {
   }
 
   function handleGoogle() {
-    setCargando(true);
-    loginConGoogle();
+    try {
+      setCargando(true);
+      loginConGoogle();
+    } catch (err) {
+      form.setErrorGeneral(err.message);
+      setCargando(false);
+    }
   }
 
   return (
@@ -92,6 +98,9 @@ export default function LoginPage() {
         <p className="login-nota">
           ¿No tienes cuenta? <Link to={RUTAS.REGISTRO}>Regístrate</Link>
         </p>
+        {USE_MOCK && (
+          <p className="login-nota">Modo de prueba: datos simulados. Los usuarios de prueba están en el README.</p>
+        )}
       </section>
     </main>
   );
